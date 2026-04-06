@@ -1,0 +1,43 @@
+# Bazel configuration options
+
+# Enable platform-specific builds
+build --enable_platform_specific_config
+
+# Use C++17 for CGo compilation
+build --cxxopt='-std=c++17'
+build --host_cxxopt='-std=c++17'
+
+# Windows-specific options
+build:windows --copt=-DWIN32
+build:windows --cxxopt=/std:c++17
+
+# Linux-specific options
+build:linux --copt=-fPIC
+
+# macOS-specific options
+build:macos --copt=-fPIC
+
+# Performance optimizations
+build --jobs=auto
+
+# Show test output
+test --test_output=errors
+
+# Enable build optimizations for release builds
+build:release --compilation_mode=opt
+build:release --stamp
+
+# Debug build configuration
+build:debug --compilation_mode=dbg
+build:debug --strip=never
+
+# Verbose output for troubleshooting
+build:verbose --verbose_failures
+build:verbose --subcommands
+
+# Fast build for development
+build:fast --compilation_mode=fastbuild
+build:fast --nostamp
+
+# Default to fast build in development
+build --config=fast

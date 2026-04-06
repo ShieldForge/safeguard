@@ -1,0 +1,65 @@
+name: Release Binaries
+
+on:
+    push:
+        tags:
+            - "v*"
+
+jobs:
+    build:
+        name: Build ${{ matrix.os }}
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                include:
+                    - os: linux
+                      goos: linux
+                      goarch: amd64
+                      artifact: safeguard-linux-amd64
+                    - os: windows
+                      goos: windows
+                      goarch: amd64
+                      artifact: safeguard-windows-amd64.exe
+                    - os: macos
+                      goos: darwin
+                      goarch: amd64
+                      artifact: safeguard-darwin-amd64
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Go
+              uses: actions/setup-go@v4
+              with:
+                  go-version: "1.25.4"
+
+            - name: Build
+              env:
+                  GOOS: ${{ matrix.goos }}
+                  GOARCH: ${{ matrix.goarch }}
+                  CGO_ENABLED: 0
+              run: go build -v -o ${{ matrix.artifact }} ./cmd/cli/
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.artifact }}
+
+    release:
+        name: Create Release
+        needs: build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Download all artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  path: artifacts
+                  merge-multiple: true
+
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@v2
+              with:
+                  files: artifacts/*

@@ -1,0 +1,45 @@
+load("@bazel_gazelle//:deps.bzl", "gazelle")
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+# gazelle:prefix safeguard
+# gazelle:exclude vendor
+gazelle(name = "gazelle")
+
+gazelle(
+    name = "gazelle-update-repos",
+    args = [
+        "-from_file=go.mod",
+        "-to_macro=deps.bzl%go_dependencies",
+        "-prune",
+    ],
+    command = "update-repos",
+)
+
+go_library(
+    name = "safeguard_lib",
+    srcs = [
+        "cmd/cli/main.go",
+        "cmd/cli/embedded_policies.go",
+    ],
+    importpath = "safeguard",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//pkg/auth",
+        "//pkg/filesystem",
+        "//pkg/logger",
+        "//pkg/vault",
+        "@com_github_rs_zerolog//:zerolog",
+    ],
+)
+
+go_binary(
+    name = "safeguard",
+    embed = [":safeguard_lib"],
+    visibility = ["//visibility:public"],
+)
+
+# Alias for easier building
+alias(
+    name = "build",
+    actual = ":safeguard",
+)

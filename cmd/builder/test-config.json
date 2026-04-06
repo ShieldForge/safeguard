@@ -1,0 +1,9 @@
+{
+  "default_vault_addr": "https://vault.example.com",
+  "default_auth_method": "ldap",
+  "default_mount_point": "W:",
+  "version": "1.0.0",
+  "build_tag": "test-build",
+  "target_os": "windows",
+  "target_arch": "amd64"
+}

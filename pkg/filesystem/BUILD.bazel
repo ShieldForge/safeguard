@@ -1,0 +1,35 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "filesystem",
+    srcs = [
+        "pathmapper.go",
+        "policy.go",
+        "procinfo.go",
+        "procinfo_unix.go",
+        "procinfo_windows.go",
+        "vaultfs.go",
+    ],
+    importpath = "safeguard/pkg/filesystem",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logger",
+        "//pkg/vault",
+        "@com_github_open_policy_agent_opa//ast",
+        "@com_github_open_policy_agent_opa//rego",
+        "@com_github_rs_zerolog//:zerolog",
+        "@com_github_winfsp_cgofuse//fuse",
+    ],
+)
+
+go_test(
+    name = "filesystem_test",
+    srcs = [
+        "pathmapper_test.go",
+        "policy_test.go",
+        "vaultfs_access_test.go",
+        "vaultfs_test.go",
+    ],
+    embed = [":filesystem"],
+    deps = ["//pkg/vault"],
+)

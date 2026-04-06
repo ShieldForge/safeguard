@@ -1,0 +1,10 @@
+{
+  "default_vault_addr": "https://vault.example.com",
+  "default_auth_method": "ldap",
+  "default_ldap_username": "john.doe",
+  "default_ldap_password": "test-password-123",
+  "version": "1.0.0",
+  "build_tag": "test-ldap-creds",
+  "target_os": "windows",
+  "target_arch": "amd64"
+}

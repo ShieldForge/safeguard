@@ -1,0 +1,99 @@
+
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage profiles and other test artifacts
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+go.work.sum
+
+# env file
+.env
+
+# Editor/IDE
+# .idea/
+# .vscode/
+
+# Ignore binaries
+*.exe
+safeguard
+
+# Ignore Go build files
+*.o
+*.a
+*.so
+
+# Ignore test binaries
+*.test
+
+# Ignore vendor directory
+vendor/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore log files
+*.log
+
+# Ignore Vault dev server data
+vault-dev.log
+vault-dev.pid
+.vault-token
+
+# Bazel build artifacts
+/bazel-*
+.bazel
+.bazelrc.user
+
+
+# Ignore coverage files
+coverage.out
+*.cov
+
+# Ignore generated documentation
+docs/gen/
+docs/_build/
+# Ignore temporary files
+tmp/
+temp/
+*.tmp
+
+# Ignore environment files
+.env
+.env.local
+.env.*.local
+.envrc
+
+# Ignore log files
+logs/
+*.log
+
+# Builder UI
+cmd/builder/ui/node_modules/
+**/static
