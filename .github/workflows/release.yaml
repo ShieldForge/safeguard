@@ -1,4 +1,7 @@
 name: Release Binaries
+permissions:
+    contents: read
+    pull-requests: write
 
 on:
     push:
