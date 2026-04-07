@@ -62,7 +62,7 @@ vault kv put secret/database/production/credentials username="admin" password="S
 
 REM API keys
 echo Creating secret: secret/api/external/services
-vault kv put secret/api/external/services stripe_key="sk_test_51234567890" sendgrid_key="SG.1234567890abcdef" aws_access_key="AKIAIOSFODNN7EXAMPLE" aws_secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+vault kv put secret/api/external/services stripe_key="sk_test_51234567890" sendgrid_key="SG.1234567890abcdef" aws_access_key="AKIAIOSFODNN7EXAMPLE" aws_secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" npm_token="npm_EWRdewfdcc43345FWDEWDF"
 
 REM Application configuration
 echo Creating secret: secret/app/config/production
