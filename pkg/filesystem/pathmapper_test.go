@@ -778,3 +778,160 @@ func TestPathMapper_MultipleVirtualPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyInjections_NoInjections(t *testing.T) {
+	content := []byte("no placeholders here")
+	result, err := ApplyInjections(content, &PathMapping{}, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if string(result) != string(content) {
+		t.Errorf("Expected content unchanged, got %q", string(result))
+	}
+}
+
+func TestApplyInjections_NilMapping(t *testing.T) {
+	content := []byte("hello")
+	result, err := ApplyInjections(content, nil, nil)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if string(result) != "hello" {
+		t.Errorf("Expected content unchanged, got %q", string(result))
+	}
+}
+
+func TestApplyInjections_SinglePlaceholder(t *testing.T) {
+	mock := NewMockVaultClient()
+	mock.SetSecret("secret/npm", map[string]interface{}{
+		"auth_token": "s3cret-tok3n",
+	})
+
+	content := []byte("//registry.npmjs.org/:_authToken={{NPM_TOKEN}}\n")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{NPM_TOKEN}}", VaultPath: "secret/npm", VaultKey: "auth_token"},
+		},
+	}
+
+	result, err := ApplyInjections(content, mapping, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := "//registry.npmjs.org/:_authToken=s3cret-tok3n\n"
+	if string(result) != expected {
+		t.Errorf("Expected %q, got %q", expected, string(result))
+	}
+}
+
+func TestApplyInjections_MultiplePlaceholders(t *testing.T) {
+	mock := NewMockVaultClient()
+	mock.SetSecret("secret/npm", map[string]interface{}{
+		"auth_token": "npm-tok",
+	})
+	mock.SetSecret("secret/github", map[string]interface{}{
+		"pat": "ghp_abc123",
+	})
+
+	content := []byte("npm={{NPM_TOKEN}}\ngithub={{GH_TOKEN}}\n")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{NPM_TOKEN}}", VaultPath: "secret/npm", VaultKey: "auth_token"},
+			{Placeholder: "{{GH_TOKEN}}", VaultPath: "secret/github", VaultKey: "pat"},
+		},
+	}
+
+	result, err := ApplyInjections(content, mapping, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := "npm=npm-tok\ngithub=ghp_abc123\n"
+	if string(result) != expected {
+		t.Errorf("Expected %q, got %q", expected, string(result))
+	}
+}
+
+func TestApplyInjections_PlaceholderNotInContent(t *testing.T) {
+	mock := NewMockVaultClient()
+	// Secret exists but placeholder not in content - should skip without error
+	mock.SetSecret("secret/npm", map[string]interface{}{
+		"auth_token": "tok",
+	})
+
+	content := []byte("no placeholders here")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{NPM_TOKEN}}", VaultPath: "secret/npm", VaultKey: "auth_token"},
+		},
+	}
+
+	result, err := ApplyInjections(content, mapping, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if string(result) != "no placeholders here" {
+		t.Errorf("Expected unchanged content, got %q", string(result))
+	}
+}
+
+func TestApplyInjections_VaultPathNotFound(t *testing.T) {
+	mock := NewMockVaultClient()
+	// No secret set at the requested path
+
+	content := []byte("token={{TOKEN}}")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{TOKEN}}", VaultPath: "secret/nonexistent", VaultKey: "key"},
+		},
+	}
+
+	_, err := ApplyInjections(content, mapping, mock)
+	if err == nil {
+		t.Fatal("Expected error for missing vault path")
+	}
+}
+
+func TestApplyInjections_VaultKeyNotFound(t *testing.T) {
+	mock := NewMockVaultClient()
+	mock.SetSecret("secret/npm", map[string]interface{}{
+		"other_key": "value",
+	})
+
+	content := []byte("token={{TOKEN}}")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{TOKEN}}", VaultPath: "secret/npm", VaultKey: "missing_key"},
+		},
+	}
+
+	_, err := ApplyInjections(content, mapping, mock)
+	if err == nil {
+		t.Fatal("Expected error for missing vault key")
+	}
+}
+
+func TestApplyInjections_RepeatedPlaceholder(t *testing.T) {
+	mock := NewMockVaultClient()
+	mock.SetSecret("secret/db", map[string]interface{}{
+		"password": "p@ss",
+	})
+
+	content := []byte("primary={{DB_PASS}}\nreplica={{DB_PASS}}\n")
+	mapping := &PathMapping{
+		SecretInjections: []SecretInjection{
+			{Placeholder: "{{DB_PASS}}", VaultPath: "secret/db", VaultKey: "password"},
+		},
+	}
+
+	result, err := ApplyInjections(content, mapping, mock)
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expected := "primary=p@ss\nreplica=p@ss\n"
+	if string(result) != expected {
+		t.Errorf("Expected %q, got %q", expected, string(result))
+	}
+}

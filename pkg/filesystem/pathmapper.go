@@ -10,12 +10,15 @@
 package filesystem
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"safeguard/pkg/vault"
 )
 
 // PathMapping represents a mapping from a virtual path in the mounted filesystem
@@ -25,10 +28,25 @@ import (
 // PathMapper will automatically create intermediate virtual directories
 // (e.g., /app, /app/config, /app/config/dev).
 type PathMapping struct {
-	VirtualPath string `json:"virtual_path"` // Path in the mounted filesystem
-	RealPath    string `json:"real_path"`    // Actual file/directory path on disk
-	ReadOnly    bool   `json:"read_only"`    // Whether the file is read-only (default: true)
-	IsDirectory bool   `json:"is_directory"` // Whether this is a directory mapping (auto-detected)
+	VirtualPath      string            `json:"virtual_path"`                // Path in the mounted filesystem
+	RealPath         string            `json:"real_path"`                   // Actual file/directory path on disk
+	ReadOnly         bool              `json:"read_only"`                   // Whether the file is read-only (default: true)
+	IsDirectory      bool              `json:"is_directory"`                // Whether this is a directory mapping (auto-detected)
+	SecretInjections []SecretInjection `json:"secret_injections,omitempty"` // Secrets to inject into file content
+}
+
+// SecretInjection defines a placeholder in a mapped file that should be replaced
+// with a secret value from the vault when the file is read.
+//
+// For example, an .npmrc file containing the text {{NPM_TOKEN}} can have that
+// placeholder replaced with the value of the "token" key at vault path
+// "secret/npm" by configuring:
+//
+//	{"placeholder": "{{NPM_TOKEN}}", "vault_path": "secret/npm", "vault_key": "token"}
+type SecretInjection struct {
+	Placeholder string `json:"placeholder"` // Text in the file to replace (e.g. "{{NPM_TOKEN}}")
+	VaultPath   string `json:"vault_path"`  // Vault secret path (e.g. "secret/npm")
+	VaultKey    string `json:"vault_key"`   // Key within the Vault secret (e.g. "token")
 }
 
 // PathMapperConfig represents the JSON configuration file structure for path mappings.
@@ -567,4 +585,30 @@ func (pm *PathMapper) ReadMappedPath(virtualPath string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ApplyInjections replaces all configured placeholder strings in content with
+// the corresponding secret values fetched from the vault client.
+// Returns the original content unmodified if the mapping has no injections.
+func ApplyInjections(content []byte, mapping *PathMapping, client vault.ClientInterface) ([]byte, error) {
+	if mapping == nil || len(mapping.SecretInjections) == 0 {
+		return content, nil
+	}
+
+	result := string(content)
+	for _, inj := range mapping.SecretInjections {
+		if !strings.Contains(result, inj.Placeholder) {
+			continue
+		}
+		data, err := client.Read(context.Background(), inj.VaultPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read vault path %q for injection: %w", inj.VaultPath, err)
+		}
+		val, ok := data[inj.VaultKey]
+		if !ok {
+			return nil, fmt.Errorf("key %q not found at vault path %q", inj.VaultKey, inj.VaultPath)
+		}
+		result = strings.ReplaceAll(result, inj.Placeholder, fmt.Sprintf("%v", val))
+	}
+	return []byte(result), nil
 }
