@@ -340,6 +340,18 @@ func (fs *VaultFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) int {
 			stat.Mode = fuse.S_IFREG | 0444 // Regular file, read-only
 			stat.Size = info.Size()
 			stat.Nlink = 1
+
+			// If file has secret injections, compute injected size
+			mapping, _ := fs.pathMapper.ResolveMappedPath(path)
+			if mapping != nil && len(mapping.SecretInjections) > 0 {
+				content, readErr := fs.pathMapper.ReadMappedPath(path)
+				if readErr == nil {
+					injected, injErr := ApplyInjections(content, mapping, fs.client)
+					if injErr == nil {
+						stat.Size = int64(len(injected))
+					}
+				}
+			}
 		}
 		fs.auditAccess("GETATTR", path, procInfo, true)
 		return 0
@@ -651,6 +663,22 @@ func (fs *VaultFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
 				})
 			}
 			return -fuse.EIO
+		}
+
+		// Apply secret injections if configured
+		mapping, _ := fs.pathMapper.ResolveMappedPath(path)
+		if mapping != nil && len(mapping.SecretInjections) > 0 {
+			injected, injErr := ApplyInjections(content, mapping, fs.client)
+			if injErr != nil {
+				if fs.debug {
+					fs.logger.Error("Error applying secret injections", map[string]interface{}{
+						"path":  path,
+						"error": injErr.Error(),
+					})
+				}
+				return -fuse.EIO
+			}
+			content = injected
 		}
 
 		// Audit successful access

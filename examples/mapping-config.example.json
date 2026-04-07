@@ -1,0 +1,17 @@
+{
+  "mappings": [
+    {
+      "virtual_path": "/config/.npmrc",
+      "real_path": "./examples/.npmrc",
+      "read_only": true,
+      "comment": "Map .npmrc and inject an auth token from Vault - {{NPM_TOKEN}} in the file is replaced with the secret value at read time",
+      "secret_injections": [
+        {
+          "placeholder": "{{NPM_TOKEN}}",
+          "vault_path": "secret/api/external/services",
+          "vault_key": "npm_token"
+        }
+      ]
+    }
+  ]
+}

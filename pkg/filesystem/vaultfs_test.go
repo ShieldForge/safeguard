@@ -733,3 +733,113 @@ func TestVaultFS_Readdir_RootLevelMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestVaultFS_Read_WithSecretInjection(t *testing.T) {
+	// Create a temp file with a placeholder
+	tmpFile, err := os.CreateTemp("", "inject-*.npmrc")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("//registry.npmjs.org/:_authToken={{NPM_TOKEN}}\nregistry=https://registry.npmjs.org/\n")
+	tmpFile.Close()
+
+	mockClient := NewMockVaultClient()
+	mockClient.SetSecret("secret/npm", map[string]interface{}{
+		"auth_token": "my-secret-token",
+	})
+
+	log := logger.New(os.Stdout, true)
+
+	// Create a PathMapper with injection config
+	pm := NewPathMapper(true)
+	err = pm.LoadMappings([]PathMapping{
+		{
+			VirtualPath: "/config/.npmrc",
+			RealPath:    tmpFile.Name(),
+			ReadOnly:    true,
+			SecretInjections: []SecretInjection{
+				{Placeholder: "{{NPM_TOKEN}}", VaultPath: "secret/npm", VaultKey: "auth_token"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Failed to load mappings: %v", err)
+	}
+
+	fs := &VaultFS{
+		client:      mockClient,
+		debug:       true,
+		pathMapper:  pm,
+		logger:      log,
+		allowedPIDs: make(map[int]bool),
+		allowedUIDs: make(map[uint32]bool),
+	}
+
+	// Read the file
+	buf := make([]byte, 4096)
+	n := fs.Read("/config/.npmrc", buf, 0, 0)
+	if n <= 0 {
+		t.Fatalf("Read returned %d, expected positive byte count", n)
+	}
+
+	result := string(buf[:n])
+	expected := "//registry.npmjs.org/:_authToken=my-secret-token\nregistry=https://registry.npmjs.org/\n"
+	if result != expected {
+		t.Errorf("Expected %q, got %q", expected, result)
+	}
+}
+
+func TestVaultFS_Getattr_WithSecretInjection(t *testing.T) {
+	// Create a temp file with a placeholder (short placeholder, long secret value)
+	tmpFile, err := os.CreateTemp("", "inject-*.txt")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.WriteString("token={{T}}")
+	tmpFile.Close()
+
+	mockClient := NewMockVaultClient()
+	mockClient.SetSecret("secret/app", map[string]interface{}{
+		"token": "a-much-longer-token-value",
+	})
+
+	log := logger.New(os.Stdout, true)
+
+	pm := NewPathMapper(true)
+	err = pm.LoadMappings([]PathMapping{
+		{
+			VirtualPath: "/config/app.txt",
+			RealPath:    tmpFile.Name(),
+			ReadOnly:    true,
+			SecretInjections: []SecretInjection{
+				{Placeholder: "{{T}}", VaultPath: "secret/app", VaultKey: "token"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Failed to load mappings: %v", err)
+	}
+
+	fs := &VaultFS{
+		client:      mockClient,
+		debug:       true,
+		pathMapper:  pm,
+		logger:      log,
+		allowedPIDs: make(map[int]bool),
+		allowedUIDs: make(map[uint32]bool),
+	}
+
+	stat := &fuse.Stat_t{}
+	ret := fs.Getattr("/config/app.txt", stat, 0)
+	if ret != 0 {
+		t.Fatalf("Getattr returned %d, expected 0", ret)
+	}
+
+	// Injected content: "token=a-much-longer-token-value" = 31 bytes
+	expectedSize := int64(len("token=a-much-longer-token-value"))
+	if stat.Size != expectedSize {
+		t.Errorf("Expected size %d after injection, got %d", expectedSize, stat.Size)
+	}
+}
