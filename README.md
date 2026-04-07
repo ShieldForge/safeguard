@@ -281,6 +281,3 @@ See [docs/TESTING.md](docs/TESTING.md) for the full testing guide.
 | [Build Server](cmd/builder/README.md) | Custom binary builder (Web UI + API) |
 | [Policy Examples](policies/README.md) | Example REGO policies |
 
-## License
-
-MIT
