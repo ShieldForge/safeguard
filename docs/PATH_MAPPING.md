@@ -48,9 +48,19 @@ The configuration is a JSON file with the following structure:
 - **`is_directory`** (optional): Auto-detected, indicates if this is a directory mapping
   - You don't need to specify this field; it's detected automatically
 
+- **`secret_injections`** (optional): A list of placeholder-to-secret replacements applied when the file is read
+  - Only supported on file mappings (not directory mappings)
+  - Each entry has three required fields:
+    - **`placeholder`**: The literal text to search for in the file (e.g. `{{NPM_TOKEN}}`)
+    - **`vault_path`**: The Vault secret path to read (e.g. `secret/npm`)
+    - **`vault_key`**: The key within the secret whose value replaces the placeholder (e.g. `auth_token`)
+  - Replacements happen in memory at read time; the original file on disk is never modified
+  - If a placeholder appears multiple times in the file, every occurrence is replaced
+  - If a placeholder is not found in the file content, that injection is silently skipped
+
 ## Example Configuration
 
-See [mapping-config.example.json](mapping-config.example.json) for a complete example.
+See [mapping-config.example.json](../examples/mapping-config.example.json) for a complete example.
 
 ```json
 {
@@ -98,6 +108,88 @@ The configuration supports two types of mappings:
    - `/certs/server.crt` → `/opt/ssl/server.crt`
    - `/certs/private/server.key` → `/opt/ssl/private/server.key`
    - `/certs/ca/root.crt` → `/opt/ssl/ca/root.crt`
+
+## Secret Injection
+
+Secret injection lets you embed Vault secrets into mapped files at read time. The original file on disk contains placeholder strings that are replaced with secret values when a process reads the file through the virtual filesystem. The file on disk is never modified.
+
+This is useful for configuration files that need authentication tokens, passwords, or API keys — such as `.npmrc`, `.env`, `.pip.conf`, or `nuget.config`.
+
+### Configuration
+
+Add a `secret_injections` array to any file mapping:
+
+```json
+{
+  "mappings": [
+    {
+      "virtual_path": "/config/.npmrc",
+      "real_path": "/home/user/.npmrc",
+      "read_only": true,
+      "secret_injections": [
+        {
+          "placeholder": "{{NPM_TOKEN}}",
+          "vault_path": "secret/npm",
+          "vault_key": "auth_token"
+        }
+      ]
+    }
+  ]
+}
+```
+
+The `.npmrc` file on disk would contain:
+
+```ini
+//registry.npmjs.org/:_authToken={{NPM_TOKEN}}
+registry=https://registry.npmjs.org/
+```
+
+When read through the mounted filesystem, the content becomes:
+
+```ini
+//registry.npmjs.org/:_authToken=s3cret-tok3n-value
+registry=https://registry.npmjs.org/
+```
+
+### Multiple Injections
+
+A single file can have multiple placeholders, each mapped to different Vault secrets:
+
+```json
+{
+  "virtual_path": "/config/.env",
+  "real_path": "/app/.env.template",
+  "read_only": true,
+  "secret_injections": [
+    {
+      "placeholder": "{{DB_PASSWORD}}",
+      "vault_path": "secret/database/prod",
+      "vault_key": "password"
+    },
+    {
+      "placeholder": "{{API_KEY}}",
+      "vault_path": "secret/api/external",
+      "vault_key": "key"
+    }
+  ]
+}
+```
+
+### How It Works
+
+1. A process reads the mapped file through the virtual filesystem
+2. Safeguard reads the original file from disk
+3. For each configured injection, the placeholder text is replaced with the secret value fetched from Vault
+4. The modified content is returned to the reading process
+5. The original file on disk is never changed
+
+### Error Handling
+
+- If the Vault path does not exist or is unreachable, the read returns an I/O error
+- If the specified key does not exist in the secret, the read returns an I/O error
+- If the placeholder text is not found in the file, that injection is silently skipped
+- Enable `-debug` logging to see detailed error messages for injection failures
 
 ## Usage
 

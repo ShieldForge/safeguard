@@ -9,6 +9,7 @@ A cross-platform application that mounts HashiCorp Vault secrets as a virtual fi
 - **SSO authentication** — OIDC, LDAP, token, with automatic token renewal
 - **Dynamic mount discovery** — Automatically lists all available secret engines
 - **Path mapping** — Map virtual paths to real files on disk (symlink-like)
+- **Secret injection** — Inject Vault secrets into mapped files at read time (e.g. `.npmrc`, `.env`)
 - **Process monitoring** — Track which processes access secrets (PID/UID/GID)
 - **Policy-based access control** — Fine-grained REGO policies by process, user, path, time
 - **Audit logging** — Log all access attempts for compliance
@@ -181,6 +182,25 @@ Map virtual paths to real files on disk alongside Vault secrets:
 ```bash
 safeguard -mount V: -auth-method token -vault-token root \
   -mapping-config mapping-config.json
+```
+
+### Secret Injection
+
+Inject Vault secrets into mapped files at read time. Placeholder strings in the file are replaced with secret values — the file on disk is never modified:
+
+```json
+{
+  "virtual_path": "/config/.npmrc",
+  "real_path": "/home/user/.npmrc",
+  "read_only": true,
+  "secret_injections": [
+    {
+      "placeholder": "{{NPM_TOKEN}}",
+      "vault_path": "secret/npm",
+      "vault_key": "auth_token"
+    }
+  ]
+}
 ```
 
 See [docs/PATH_MAPPING.md](docs/PATH_MAPPING.md) for details.
